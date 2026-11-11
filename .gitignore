@@ -1,0 +1,6 @@
+.godot/
+/android/
+mcp.json
+bin/
+obj/
+.vs/
