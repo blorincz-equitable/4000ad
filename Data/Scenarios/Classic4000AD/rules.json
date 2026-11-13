@@ -1,0 +1,18 @@
+{
+  "combat": {
+    "id": "classic-combat",
+    "type": "deterministic"
+  },
+  "production": {
+    "id": "classic-production",
+    "type": "classic"
+  },
+  "movement": {
+    "id": "classic-warp-movement",
+    "type": "warp"
+  },
+  "victory": {
+    "id": "classic-victory",
+    "type": "classic"
+  }
+}

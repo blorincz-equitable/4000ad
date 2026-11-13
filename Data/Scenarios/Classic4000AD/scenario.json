@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "classic-4000ad",
+  "name": "Classic 4000 A.D.",
+  "galaxyFile": "galaxy.json",
+  "playersFile": "players.json",
+  "rulesFile": "rules.json",
+  "themeFile": "theme.json"
+}
