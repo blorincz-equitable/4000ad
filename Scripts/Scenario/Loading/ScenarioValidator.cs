@@ -20,19 +20,61 @@ public static class ScenarioValidator
             errors.Add("scenario.schemaVersion must be greater than zero.");
         }
 
+        if (galaxy.Rows < 1 || galaxy.Columns < 1)
+        {
+            errors.Add("Galaxy rows and columns must both be greater than zero.");
+        }
+
+        if (players.Players.Count is < 2 or > 4)
+        {
+            errors.Add("A scenario must define between two and four players.");
+        }
+
         CheckUniqueIds(galaxy.Sectors.Select(sector => sector.Id), "sector", errors);
         CheckUniqueIds(galaxy.StarTypes.Select(starType => starType.Id), "star type", errors);
         CheckUniqueIds(galaxy.Stars.Select(star => star.Id), "star", errors);
         CheckUniqueIds(galaxy.WarpRoutes.Select(route => route.Id), "warp route", errors);
         CheckUniqueIds(players.Players.Select(player => player.Id), "player", errors);
 
+        foreach (var starType in galaxy.StarTypes)
+        {
+            RequireValue(starType.Name, $"starType '{starType.Id}'.name", errors);
+            RequireValue(starType.DisplayColor, $"starType '{starType.Id}'.displayColor", errors);
+        }
+
+        foreach (var player in players.Players)
+        {
+            RequireValue(player.Name, $"player '{player.Id}'.name", errors);
+        }
+
         var sectorIds = galaxy.Sectors.Select(sector => sector.Id).ToHashSet(StringComparer.Ordinal);
         var starTypeIds = galaxy.StarTypes.Select(starType => starType.Id).ToHashSet(StringComparer.Ordinal);
         var starIds = galaxy.Stars.Select(star => star.Id).ToHashSet(StringComparer.Ordinal);
         var playerIds = players.Players.Select(player => player.Id).ToHashSet(StringComparer.Ordinal);
 
+        var sectorCoordinates = new HashSet<(int Row, int Column)>();
+        foreach (var sector in galaxy.Sectors)
+        {
+            if (sector.Row < 0 || sector.Row >= galaxy.Rows || sector.Column < 0 || sector.Column >= galaxy.Columns)
+            {
+                errors.Add($"Sector '{sector.Id}' is outside the configured galaxy grid.");
+            }
+
+            if (!sectorCoordinates.Add((sector.Row, sector.Column)))
+            {
+                errors.Add($"Multiple sectors are assigned to row {sector.Row}, column {sector.Column}.");
+            }
+        }
+
+        if (sectorCoordinates.Count != galaxy.Rows * galaxy.Columns)
+        {
+            errors.Add("The number of sectors must match the configured galaxy grid.");
+        }
+
         foreach (var star in galaxy.Stars)
         {
+            RequireValue(star.Name, $"star '{star.Id}'.name", errors);
+
             if (!sectorIds.Contains(star.SectorId))
             {
                 errors.Add($"Star '{star.Id}' references unknown sector '{star.SectorId}'.");
@@ -41,6 +83,11 @@ public static class ScenarioValidator
             if (!starTypeIds.Contains(star.StarTypeId))
             {
                 errors.Add($"Star '{star.Id}' references unknown star type '{star.StarTypeId}'.");
+            }
+
+            if (star.Position.X is < 0 or > 1 || star.Position.Y is < 0 or > 1)
+            {
+                errors.Add($"Star '{star.Id}' position must be within its sector (x and y from zero to one).");
             }
         }
 

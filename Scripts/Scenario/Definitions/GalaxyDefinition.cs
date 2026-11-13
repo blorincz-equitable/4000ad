@@ -4,6 +4,11 @@ namespace Game.Scenarios;
 
 public sealed class GalaxyDefinition
 {
+    public int Rows { get; set; } = 1;
+    public int Columns { get; set; } = 1;
+    public string BackgroundColor { get; set; } = "#191970";
+    public string SectorLineColor { get; set; } = "#000000";
+    public float SectorLineWidth { get; set; } = 2;
     public List<SectorDefinition> Sectors { get; init; } = [];
     public List<StarTypeDefinition> StarTypes { get; init; } = [];
     public List<StarDefinition> Stars { get; init; } = [];

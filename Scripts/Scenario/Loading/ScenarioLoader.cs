@@ -1,5 +1,7 @@
+using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Game.Scenarios;
@@ -8,13 +10,15 @@ public sealed class ScenarioLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
     public ScenarioData Load(string scenarioFilePath)
     {
         var scenario = ReadJson<ScenarioDefinition>(scenarioFilePath);
-        var directory = scenarioFilePath[..(scenarioFilePath.LastIndexOf('/') + 1)];
+        var separatorIndex = Math.Max(scenarioFilePath.LastIndexOf('/'), scenarioFilePath.LastIndexOf('\\'));
+        var directory = separatorIndex < 0 ? string.Empty : scenarioFilePath[..(separatorIndex + 1)];
 
         var data = new ScenarioData
         {

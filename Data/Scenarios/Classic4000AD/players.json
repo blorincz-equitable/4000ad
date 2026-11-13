@@ -1,4 +1,17 @@
 {
-  "players": [],
+  "players": [
+    {
+      "id": "player-1",
+      "name": "Player 1",
+      "color": "#E74C3C",
+      "isAi": false
+    },
+    {
+      "id": "player-2",
+      "name": "Player 2",
+      "color": "#3498DB",
+      "isAi": false
+    }
+  ],
   "startingAssets": []
 }

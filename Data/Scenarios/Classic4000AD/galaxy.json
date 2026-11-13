@@ -1,6 +1,34 @@
 {
-  "sectors": [],
-  "starTypes": [],
+  "rows": 1,
+  "columns": 1,
+  "backgroundColor": "#191970",
+  "sectorLineColor": "#000000",
+  "sectorLineWidth": 2,
+  "sectors": [
+    {
+      "id": "sector-r1-c1",
+      "name": "Sector 1, 1",
+      "color": "#191970",
+      "row": 0,
+      "column": 0
+    }
+  ],
+  "starTypes": [
+    {
+      "id": "star-type-1",
+      "name": "Yellow",
+      "displayColor": "#FFFF00",
+      "productionValue": 0,
+      "size": "medium"
+    },
+    {
+      "id": "star-type-2",
+      "name": "Orange",
+      "displayColor": "#FF8C00",
+      "productionValue": 0,
+      "size": "medium"
+    }
+  ],
   "stars": [],
   "warpRoutes": []
 }

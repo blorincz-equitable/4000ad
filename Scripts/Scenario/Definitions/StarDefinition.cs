@@ -11,6 +11,7 @@ public sealed class StarDefinition
 
 public sealed class PositionDefinition
 {
+    // Coordinates are normalized within the star's sector, from 0 to 1.
     public float X { get; init; }
     public float Y { get; init; }
 }

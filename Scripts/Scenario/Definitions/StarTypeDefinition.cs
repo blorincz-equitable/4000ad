@@ -6,4 +6,5 @@ public sealed class StarTypeDefinition
     public string Name { get; init; } = string.Empty;
     public string DisplayColor { get; init; } = string.Empty;
     public int ProductionValue { get; init; }
+    public StarSize Size { get; init; } = StarSize.Medium;
 }
