@@ -13,6 +13,7 @@ public partial class Main : Control
     private RulesDefinition _rules;
     private ThemeDefinition _theme;
     private string _scenarioFilePath = string.Empty;
+    private string _backgroundImageSourcePath = string.Empty;
     private bool _isDirty;
     private bool _syncingControls;
     private bool _loadingStarForm;
@@ -20,6 +21,7 @@ public partial class Main : Control
     private SpinBox _rowsInput;
     private SpinBox _columnsInput;
     private SpinBox _playerCountInput;
+    private ColorPickerButton _backgroundColorPicker;
     private GalaxyCanvas _galaxyCanvas;
     private VBoxContainer _starTypesList;
     private Button _addStarButton;
@@ -115,11 +117,37 @@ public partial class Main : Control
         _galaxyCanvas.SectorSelected += OnSectorSelected;
         _galaxyCanvas.StarSelected += OnStarSelected;
         content.AddChild(_galaxyCanvas);
+        LoadBackgroundImageForScenario("res://Data/Scenarios/Classic4000AD/scenario.json");
     }
 
     private void BuildGalaxyControls(VBoxContainer sidebar)
     {
         sidebar.AddChild(new Label { Text = "Galaxy grid" });
+
+        _backgroundColorPicker = new ColorPickerButton
+        {
+            Color = ParseColor(_galaxy.BackgroundColor),
+            CustomMinimumSize = new Vector2(48, 32)
+        };
+        var colorPicker = _backgroundColorPicker.GetPicker();
+        colorPicker.HexVisible = true;
+        colorPicker.EditAlpha = false;
+        _backgroundColorPicker.ColorChanged += UpdateGalaxyBackgroundColor;
+        AddLabeledControl(sidebar, "Background color", _backgroundColorPicker);
+
+        var backgroundImageControls = new HBoxContainer();
+        var chooseBackgroundImageButton = new Button
+        {
+            Text = "Choose image",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
+        };
+        chooseBackgroundImageButton.Pressed += OpenBackgroundImageDialog;
+        backgroundImageControls.AddChild(chooseBackgroundImageButton);
+
+        var clearBackgroundImageButton = new Button { Text = "Clear" };
+        clearBackgroundImageButton.Pressed += ClearBackgroundImage;
+        backgroundImageControls.AddChild(clearBackgroundImageButton);
+        AddLabeledControl(sidebar, "Background image", backgroundImageControls);
 
         _rowsInput = CreateIntegerInput(1, Math.Max(100, _galaxy.Rows), _galaxy.Rows);
         _rowsInput.ValueChanged += value =>
@@ -140,6 +168,95 @@ public partial class Main : Control
             }
         };
         AddLabeledControl(sidebar, "Columns", _columnsInput);
+    }
+
+    private void UpdateGalaxyBackgroundColor(Color color)
+    {
+        if (_syncingControls)
+        {
+            return;
+        }
+
+        _galaxy.BackgroundColor = ToHtmlColor(color);
+        _galaxyCanvas.QueueRedraw();
+        MarkDirty();
+    }
+
+    private void OpenBackgroundImageDialog()
+    {
+        var dialog = new FileDialog
+        {
+            Title = "Choose Galaxy Background Image",
+            FileMode = FileDialog.FileModeEnum.OpenFile,
+            Access = FileDialog.AccessEnum.Filesystem
+        };
+        dialog.AddFilter("*.png, *.jpg, *.jpeg, *.webp, *.bmp, *.tga ; Images");
+        dialog.FileSelected += path =>
+        {
+            SetBackgroundImage(path);
+            dialog.QueueFree();
+        };
+        dialog.Canceled += dialog.QueueFree;
+        AddChild(dialog);
+        dialog.PopupCenteredRatio(0.8f);
+    }
+
+    private void SetBackgroundImage(string path)
+    {
+        var absolutePath = Path.GetFullPath(path);
+        var image = Image.LoadFromFile(absolutePath);
+        if (image.IsEmpty())
+        {
+            SetStatus($"Could not load background image: {path}");
+            return;
+        }
+
+        _backgroundImageSourcePath = absolutePath;
+        _galaxyCanvas.BackgroundTexture = ImageTexture.CreateFromImage(image);
+        _galaxyCanvas.QueueRedraw();
+        MarkDirty();
+    }
+
+    private void ClearBackgroundImage()
+    {
+        _backgroundImageSourcePath = string.Empty;
+        _galaxy.BackgroundImageFile = string.Empty;
+        _galaxyCanvas.BackgroundTexture = null;
+        _galaxyCanvas.QueueRedraw();
+        MarkDirty();
+    }
+
+    private bool LoadBackgroundImageForScenario(string scenarioPath)
+    {
+        _backgroundImageSourcePath = string.Empty;
+        _galaxyCanvas.BackgroundTexture = null;
+        if (string.IsNullOrWhiteSpace(_galaxy.BackgroundImageFile))
+        {
+            return true;
+        }
+
+        var absoluteScenarioPath = scenarioPath.StartsWith("res://", StringComparison.Ordinal)
+            || scenarioPath.StartsWith("user://", StringComparison.Ordinal)
+            ? ProjectSettings.GlobalizePath(scenarioPath)
+            : Path.GetFullPath(scenarioPath);
+        var scenarioDirectory = Path.GetDirectoryName(absoluteScenarioPath);
+        if (string.IsNullOrWhiteSpace(scenarioDirectory))
+        {
+            SetStatus("Could not resolve the scenario folder for its background image.");
+            return false;
+        }
+
+        var imagePath = Path.GetFullPath(Path.Combine(scenarioDirectory, _galaxy.BackgroundImageFile));
+        _backgroundImageSourcePath = imagePath;
+        var image = Image.LoadFromFile(imagePath);
+        if (image.IsEmpty())
+        {
+            SetStatus($"Could not load galaxy background image: {imagePath}");
+            return false;
+        }
+
+        _galaxyCanvas.BackgroundTexture = ImageTexture.CreateFromImage(image);
+        return true;
     }
 
     private void BuildPlayerControls(VBoxContainer sidebar)
@@ -844,8 +961,14 @@ public partial class Main : Control
 
         try
         {
-            new ScenarioSaver().Save(path, data);
+            new ScenarioSaver().Save(path, data, _backgroundImageSourcePath);
             _scenarioFilePath = path;
+            if (!string.IsNullOrWhiteSpace(_galaxy.BackgroundImageFile))
+            {
+                _backgroundImageSourcePath = Path.Combine(
+                    Path.GetDirectoryName(Path.GetFullPath(path))!,
+                    _galaxy.BackgroundImageFile);
+            }
             _isDirty = false;
             UpdateScenarioTitle();
             SetStatus($"Saved scenario to {path}.");
@@ -892,6 +1015,9 @@ public partial class Main : Control
         _players = scenario.Players;
         _rules = scenario.Rules;
         _theme = scenario.Theme;
+        _syncingControls = true;
+        _backgroundColorPicker.Color = ParseColor(_galaxy.BackgroundColor);
+        _syncingControls = false;
         _scenarioFilePath = path;
         _isDirty = false;
         _selectedRow = -1;
@@ -900,6 +1026,7 @@ public partial class Main : Control
         _galaxyCanvas.Galaxy = _galaxy;
         _galaxyCanvas.SelectedRow = -1;
         _galaxyCanvas.SelectedColumn = -1;
+        var backgroundImageLoaded = LoadBackgroundImageForScenario(path);
         _galaxyCanvas.QueueRedraw();
         _selectionLabel.Text = "Select a sector to add a star.";
         _starForm.Visible = false;
@@ -910,7 +1037,10 @@ public partial class Main : Control
         UpdateAddStarButton();
         SyncGridInputs();
         UpdateScenarioTitle();
-        SetStatus($"Loaded scenario '{_scenarioDefinition.Name}'.");
+        if (backgroundImageLoaded)
+        {
+            SetStatus($"Loaded scenario '{_scenarioDefinition.Name}'.");
+        }
     }
 
     private void UpdateAddStarButton()

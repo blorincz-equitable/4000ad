@@ -8,6 +8,7 @@ namespace Game.ScenarioEditor;
 public partial class GalaxyCanvas : Control
 {
     public GalaxyDefinition Galaxy { get; set; } = new();
+    public Texture2D BackgroundTexture { get; set; }
     public int SelectedRow { get; set; } = -1;
     public int SelectedColumn { get; set; } = -1;
 
@@ -26,7 +27,12 @@ public partial class GalaxyCanvas : Control
         var gridRect = GetGridRect();
         var cellSize = gridRect.Size.X / columns;
 
-        DrawRect(new Rect2(Vector2.Zero, Size), ParseColor(Galaxy.BackgroundColor, Colors.MidnightBlue));
+        DrawRect(new Rect2(Vector2.Zero, Size), Colors.MidnightBlue);
+        DrawRect(gridRect, ParseColor(Galaxy.BackgroundColor, Colors.MidnightBlue));
+        if (BackgroundTexture != null)
+        {
+            DrawTextureRect(BackgroundTexture, gridRect, false);
+        }
 
         var lineColor = ParseColor(Galaxy.SectorLineColor, Colors.Black);
         var lineWidth = Math.Max(1, Galaxy.SectorLineWidth);
@@ -122,17 +128,41 @@ public partial class GalaxyCanvas : Control
     private void DrawCenteredStarName(string name, Vector2 center, float diameter)
     {
         var font = ThemeDB.FallbackFont;
+        var firstSpace = name.IndexOf(' ');
+        var secondLine = firstSpace < 0 ? string.Empty : name[(firstSpace + 1)..].Trim();
+        var lines = string.IsNullOrEmpty(secondLine)
+            ? new[] { name }
+            : new[] { name[..firstSpace], secondLine };
         var fontSize = Math.Max(1, Mathf.RoundToInt(diameter * 0.4f));
-        var textSize = font.GetStringSize(name, HorizontalAlignment.Left, -1, fontSize);
-        while (fontSize > 1 && textSize.X > diameter * 0.85f)
+        float lineHeight;
+        while (true)
         {
+            lineHeight = font.GetAscent(fontSize) + font.GetDescent(fontSize);
+            var widestLine = 0.0f;
+            foreach (var line in lines)
+            {
+                widestLine = Math.Max(
+                    widestLine,
+                    font.GetStringSize(line, HorizontalAlignment.Left, -1, fontSize).X);
+            }
+
+            if (fontSize <= 1
+                || (widestLine <= diameter * 0.85f && lineHeight * lines.Length <= diameter * 0.85f))
+            {
+                break;
+            }
+
             fontSize--;
-            textSize = font.GetStringSize(name, HorizontalAlignment.Left, -1, fontSize);
         }
 
         var baselineY = center.Y + (font.GetAscent(fontSize) - font.GetDescent(fontSize)) / 2;
-        var position = new Vector2(center.X - textSize.X / 2, baselineY);
-        DrawString(font, position, name, HorizontalAlignment.Left, -1, fontSize, Colors.Black);
+        baselineY -= lineHeight * (lines.Length - 1) / 2;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var textWidth = font.GetStringSize(lines[index], HorizontalAlignment.Left, -1, fontSize).X;
+            var position = new Vector2(center.X - textWidth / 2, baselineY + lineHeight * index);
+            DrawString(font, position, lines[index], HorizontalAlignment.Left, -1, fontSize, Colors.Black);
+        }
     }
 
     private StarDefinition FindStarAt(Vector2 position, Vector2 gridOrigin, float cellSize)

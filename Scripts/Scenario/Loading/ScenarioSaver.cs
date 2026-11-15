@@ -17,6 +17,11 @@ public sealed class ScenarioSaver
 
     public void Save(string scenarioFilePath, ScenarioData data)
     {
+        Save(scenarioFilePath, data, null);
+    }
+
+    public void Save(string scenarioFilePath, ScenarioData data, string backgroundImageSourcePath)
+    {
         var errors = ScenarioValidator.Validate(data);
         if (errors.Count > 0)
         {
@@ -45,11 +50,45 @@ public sealed class ScenarioSaver
             ThemeFile = $"{fileStem}.theme.json"
         };
 
-        WriteJson(Path.Combine(directory, definition.GalaxyFile), data.Galaxy);
+        var galaxyToSave = data.Galaxy;
+        var backgroundImageFile = data.Galaxy.BackgroundImageFile;
+        if (backgroundImageSourcePath != null)
+        {
+            if (!string.IsNullOrWhiteSpace(backgroundImageSourcePath))
+            {
+                var absoluteImageSourcePath = Path.GetFullPath(backgroundImageSourcePath);
+                var imageExtension = Path.GetExtension(absoluteImageSourcePath);
+                if (string.IsNullOrWhiteSpace(imageExtension))
+                {
+                    throw new ArgumentException("The background image file must have an extension.", nameof(backgroundImageSourcePath));
+                }
+
+                var imageFileName = $"{fileStem}.background{imageExtension}";
+                var absoluteImageTargetPath = Path.Combine(directory, imageFileName);
+                if (!string.Equals(absoluteImageSourcePath, absoluteImageTargetPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(absoluteImageSourcePath, absoluteImageTargetPath, overwrite: true);
+                }
+
+                backgroundImageFile = imageFileName;
+            }
+            else
+            {
+                backgroundImageFile = string.Empty;
+            }
+
+            galaxyToSave = CopyGalaxyWithBackgroundImageFile(data.Galaxy, backgroundImageFile);
+        }
+
+        WriteJson(Path.Combine(directory, definition.GalaxyFile), galaxyToSave);
         WriteJson(Path.Combine(directory, definition.PlayersFile), data.Players);
         WriteJson(Path.Combine(directory, definition.RulesFile), data.Rules);
         WriteJson(Path.Combine(directory, definition.ThemeFile), data.Theme);
         WriteJson(absoluteScenarioPath, definition);
+        if (backgroundImageSourcePath != null)
+        {
+            data.Galaxy.BackgroundImageFile = backgroundImageFile;
+        }
     }
 
     private static string ToAbsolutePath(string path)
@@ -66,5 +105,24 @@ public sealed class ScenarioSaver
     private static void WriteJson<T>(string path, T data)
     {
         File.WriteAllText(path, JsonSerializer.Serialize(data, JsonOptions));
+    }
+
+    private static GalaxyDefinition CopyGalaxyWithBackgroundImageFile(
+        GalaxyDefinition galaxy,
+        string backgroundImageFile)
+    {
+        return new GalaxyDefinition
+        {
+            Rows = galaxy.Rows,
+            Columns = galaxy.Columns,
+            BackgroundColor = galaxy.BackgroundColor,
+            BackgroundImageFile = backgroundImageFile,
+            SectorLineColor = galaxy.SectorLineColor,
+            SectorLineWidth = galaxy.SectorLineWidth,
+            Sectors = galaxy.Sectors,
+            StarTypes = galaxy.StarTypes,
+            Stars = galaxy.Stars,
+            WarpRoutes = galaxy.WarpRoutes
+        };
     }
 }
