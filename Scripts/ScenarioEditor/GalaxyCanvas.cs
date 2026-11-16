@@ -7,6 +7,11 @@ namespace Game.ScenarioEditor;
 
 public partial class GalaxyCanvas : Control
 {
+    private const int SectorNameFontSize = 12;
+    private const int StarSectorNameFontSize = 9;
+    private const float StarAttributeSymbolSize = 4;
+    private const float StarAttributeStrokeWidth = 1.5f;
+
     public GalaxyDefinition Galaxy { get; set; } = new();
     public Texture2D BackgroundTexture { get; set; }
     public int SelectedRow { get; set; } = -1;
@@ -61,6 +66,7 @@ public partial class GalaxyCanvas : Control
         }
 
         DrawStars(gridRect.Position, cellSize);
+        DrawSectorNames(gridRect.Position, cellSize);
     }
 
     public override void _GuiInput(InputEvent @event)
@@ -119,13 +125,115 @@ public partial class GalaxyCanvas : Control
             var position = GetStarPosition(star, sector, starType, gridOrigin, cellSize);
             var diameter = GetStarDiameter(starType.Size, cellSize);
             var radius = diameter / 2;
+            if (star.IsHomeStar)
+            {
+                var haloOffset = Math.Max(2, cellSize * 0.012f);
+                var haloWidth = Math.Max(1, cellSize * 0.008f);
+                DrawCircle(position, radius + haloOffset, Colors.Gold, false, haloWidth, true);
+            }
+
             DrawCircle(position, radius, ParseColor(starType.DisplayColor, Colors.White), true, -1, true);
 
-            DrawCenteredStarName(star.Name.ToUpperInvariant(), position, diameter);
+            var fontSizePercent = starType.Size switch
+            {
+                StarSize.Small => Galaxy.SmallStarFontSizePercent,
+                StarSize.Medium => Galaxy.MediumStarFontSizePercent,
+                StarSize.Large => Galaxy.LargeStarFontSizePercent,
+                _ => Galaxy.MediumStarFontSizePercent
+            };
+            var fontSize = Math.Max(1, Mathf.RoundToInt(diameter * fontSizePercent / 100.0f));
+            DrawCenteredStarName(star.Name.ToUpperInvariant(), position + new Vector2(0, 1), fontSize);
+            DrawSectorNameInStar(sector.Name, position, diameter);
+            DrawStarAttributes(star, position, diameter);
         }
     }
 
-    private void DrawCenteredStarName(string name, Vector2 center, float diameter)
+    private void DrawSectorNames(Vector2 gridOrigin, float cellSize)
+    {
+        var font = ThemeDB.FallbackFont;
+        var lineColor = ParseColor(Galaxy.SectorLineColor, Colors.Black);
+        foreach (var sector in Galaxy.Sectors)
+        {
+            if (string.IsNullOrWhiteSpace(sector.Name))
+            {
+                continue;
+            }
+
+            var name = sector.Name.ToUpperInvariant();
+            var textWidth = font.GetStringSize(name, HorizontalAlignment.Left, -1, SectorNameFontSize).X;
+            var centerX = gridOrigin.X + (sector.Column + 0.5f) * cellSize;
+            var baselineY = gridOrigin.Y + sector.Row * cellSize + cellSize * 0.025f
+                + font.GetAscent(SectorNameFontSize);
+            var position = new Vector2(centerX - textWidth / 2, baselineY);
+            DrawString(font, position, name, HorizontalAlignment.Left, -1, SectorNameFontSize, lineColor);
+        }
+    }
+
+    private void DrawSectorNameInStar(string sectorName, Vector2 center, float diameter)
+    {
+        if (string.IsNullOrWhiteSpace(sectorName))
+        {
+            return;
+        }
+
+        var name = sectorName.ToUpperInvariant();
+        var font = ThemeDB.FallbackFont;
+        var textWidth = font.GetStringSize(name, HorizontalAlignment.Left, -1, StarSectorNameFontSize).X;
+        var lineColor = ParseColor(Galaxy.SectorLineColor, Colors.Black);
+        var baselineY = center.Y - diameter / 2 + diameter * 0.02f + font.GetAscent(StarSectorNameFontSize);
+        DrawString(
+            font,
+            new Vector2(center.X - textWidth / 2, baselineY),
+            name,
+            HorizontalAlignment.Left,
+            -1,
+            StarSectorNameFontSize,
+            lineColor);
+    }
+
+    private void DrawStarAttributes(StarDefinition star, Vector2 center, float diameter)
+    {
+        if (!star.HasPopulation && !star.HasResources)
+        {
+            return;
+        }
+
+        var symbolSize = StarAttributeSymbolSize;
+        const float gap = 2;
+        var strokeWidth = StarAttributeStrokeWidth;
+        var markerY = center.Y + diameter * 0.32f;
+        var markerCount = (star.HasPopulation ? 1 : 0) + (star.HasResources ? 1 : 0);
+        var totalWidth = markerCount * symbolSize + (markerCount - 1) * gap;
+        var markerCenterX = center.X - totalWidth / 2 + symbolSize / 2;
+
+        if (star.HasPopulation)
+        {
+            DrawCircle(
+                new Vector2(markerCenterX, markerY),
+                (symbolSize - strokeWidth) / 2,
+                Colors.Black,
+                false,
+                strokeWidth,
+                true);
+            markerCenterX += symbolSize + gap;
+        }
+
+        if (star.HasResources)
+        {
+            DrawLine(
+                new Vector2(markerCenterX - symbolSize / 2, markerY),
+                new Vector2(markerCenterX + symbolSize / 2, markerY),
+                Colors.Black,
+                strokeWidth);
+            DrawLine(
+                new Vector2(markerCenterX, markerY - symbolSize / 2),
+                new Vector2(markerCenterX, markerY + symbolSize / 2),
+                Colors.Black,
+                strokeWidth);
+        }
+    }
+
+    private void DrawCenteredStarName(string name, Vector2 center, int fontSize)
     {
         var font = ThemeDB.FallbackFont;
         var firstSpace = name.IndexOf(' ');
@@ -133,34 +241,13 @@ public partial class GalaxyCanvas : Control
         var lines = string.IsNullOrEmpty(secondLine)
             ? new[] { name }
             : new[] { name[..firstSpace], secondLine };
-        var fontSize = Math.Max(1, Mathf.RoundToInt(diameter * 0.4f));
-        float lineHeight;
-        while (true)
-        {
-            lineHeight = font.GetAscent(fontSize) + font.GetDescent(fontSize);
-            var widestLine = 0.0f;
-            foreach (var line in lines)
-            {
-                widestLine = Math.Max(
-                    widestLine,
-                    font.GetStringSize(line, HorizontalAlignment.Left, -1, fontSize).X);
-            }
-
-            if (fontSize <= 1
-                || (widestLine <= diameter * 0.85f && lineHeight * lines.Length <= diameter * 0.85f))
-            {
-                break;
-            }
-
-            fontSize--;
-        }
-
+        var lineAdvance = Math.Max(1, fontSize * 0.9f);
         var baselineY = center.Y + (font.GetAscent(fontSize) - font.GetDescent(fontSize)) / 2;
-        baselineY -= lineHeight * (lines.Length - 1) / 2;
+        baselineY -= lineAdvance * (lines.Length - 1) / 2;
         for (var index = 0; index < lines.Length; index++)
         {
             var textWidth = font.GetStringSize(lines[index], HorizontalAlignment.Left, -1, fontSize).X;
-            var position = new Vector2(center.X - textWidth / 2, baselineY + lineHeight * index);
+            var position = new Vector2(center.X - textWidth / 2, baselineY + lineAdvance * index);
             DrawString(font, position, lines[index], HorizontalAlignment.Left, -1, fontSize, Colors.Black);
         }
     }

@@ -6,6 +6,9 @@ public sealed class StarDefinition
     public string Name { get; init; } = string.Empty;
     public string SectorId { get; init; } = string.Empty;
     public string StarTypeId { get; init; } = string.Empty;
+    public bool HasPopulation { get; init; }
+    public bool HasResources { get; init; }
+    public bool IsHomeStar { get; init; }
     public PositionDefinition Position { get; init; } = new();
 }
 
